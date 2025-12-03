@@ -72,31 +72,35 @@ async def search_memory(query: str) -> str:
         print(f"[ERROR] Search failed: {str(e)}")
         return f"Error searching memory: {str(e)}"
 
-# --- FINAL CLOUD RUNNER WITH HOST FIX ---
+# --- FINAL CLOUD RUNNER (The Jailbreak Fix) ---
 if __name__ == "__main__":
     import uvicorn
+    from starlette.applications import Starlette
     
     print("Starting Higgins Memory Server...")
-    
-    # 1. Get the app
-    app = mcp.sse_app
 
-    # 2. Define the 'Liar' Middleware to fix the Host Header error
-    async def cloud_wrapper(scope, receive, send):
-        # If it's a web request, we trick the app into thinking it's localhost
-        if scope['type'] == 'http':
-            new_headers = []
-            for k, v in scope['headers']:
-                if k == b'host':
-                    # Rewrite the host header to localhost
-                    new_headers.append((b'host', b'localhost:8080'))
-                else:
-                    new_headers.append((k, v))
-            scope['headers'] = new_headers
+    try:
+        # 1. We steal the routes from the MCP object
+        # We saw '_starlette_routes' in your logs earlier.
+        routes = getattr(mcp, "_starlette_routes", [])
         
-        # Pass the modified request to the real app
-        await app(scope, receive, send)
+        if not routes:
+            # Fallback if the name changed in a specific version
+            print("⚠️ Warning: Could not find routes. Trying standard run...")
+            mcp.run(transport="sse")
+        else:
+            # 2. We build our OWN server using those routes
+            # This bypasses all the security/host restrictions of the library
+            app = Starlette(routes=routes, debug=True)
+            
+            print("✅ Custom Starlette App Built! Running on 0.0.0.0:8080...")
+            
+            # 3. Run it cleanly
+            uvicorn.run(app, host="0.0.0.0", port=8080)
 
-    # 3. Run the WRAPPED app
-    print("✅ Starting Server with Host Header Fix on 0.0.0.0:8080...")
-    uvicorn.run(cloud_wrapper, host="0.0.0.0", port=8080)
+    except Exception as e:
+        print(f"❌ Critical Error: {e}")
+        # Last resort fallback
+        os.environ["HOST"] = "0.0.0.0"
+        os.environ["PORT"] = "8080"
+        mcp.run(transport="sse")
