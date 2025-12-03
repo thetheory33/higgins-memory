@@ -37,9 +37,6 @@ async def search_memory(query: str) -> str:
     Searches past memories. Use this immediately when the user asks a question 
     that relies on previous context or personal history.
     """
-    # If it's not a list now (and not a dict we successfully unwrapped), safety check:
-    # (Simplified logic for clarity)
-    
     print(f"\n[ACTION] Searching memory for: '{query}'")
     
     try:
@@ -78,22 +75,19 @@ async def search_memory(query: str) -> str:
         print(f"[ERROR] Search failed: {str(e)}")
         return f"Error searching memory: {str(e)}"
 
-# --- SMART CLOUD RUNNER (The Fix) ---
+# --- SMART CLOUD RUNNER (Updated with the found key) ---
 if __name__ == "__main__":
     import uvicorn
     
     print("Starting Higgins Memory Server...")
     
-    # We look for the hidden app object using common names
-    # The library developers hide it in different places depending on version
-    app = getattr(mcp, "_app", None) or getattr(mcp, "_starlette_app", None) or getattr(mcp, "app", None)
+    # We found the secret key in your logs! It is '_sse_app'
+    app = getattr(mcp, "_sse_app", None)
     
     if app:
-        print("✅ Found internal app! Starting server on 0.0.0.0:8080...")
+        print("✅ Found internal SSE app! Starting server on 0.0.0.0:8080...")
         uvicorn.run(app, host="0.0.0.0", port=8080)
     else:
-        # If we can't find it, we print EVERYTHING so we can see the real name in logs
-        print("❌ COULD NOT FIND APP. Here is what is inside 'mcp':")
-        print(dir(mcp))
-        # Fallback: Try running normally (might fail on port binding but worth a shot)
+        print("❌ STILL COULD NOT FIND APP. Trying standard run as last resort...")
+        # This part likely won't work on cloud, but it's a failsafe
         mcp.run(transport="sse")
