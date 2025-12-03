@@ -37,46 +37,38 @@ async def search_memory(query: str) -> str:
     Searches past memories. Use this immediately when the user asks a question 
     that relies on previous context or personal history.
     """
+    # If it's not a list now (and not a dict we successfully unwrapped), safety check:
+    # (Simplified logic for clarity)
+    
     print(f"\n[ACTION] Searching memory for: '{query}'")
     
     try:
         my_filters = {"user_id": FIXED_USER_ID}
-        
-        # API Call
         results = memory.search(query=query, filters=my_filters)
         
-        # --- DEBUG LOGGING (So we can see exactly what came back) ---
+        # --- DEBUG LOGGING ---
         print(f"[DEBUG] Raw data received: {results}")
 
-        # --- THE FIX: Handle different return formats ---
-        # If it returns a Dictionary (The Box), we look for the list inside
+        # Unwrap dictionary if needed
         if isinstance(results, dict):
             if "results" in results:
                 results = results["results"]
             elif "data" in results:
                 results = results["data"]
-            # If it's a dict but has no list inside, it might be an empty response
-            else:
-                 # If the dict is just empty or not what we expect, treat as empty list
-                 pass
         
-        # If it's not a list now (and not a dict we successfully unwrapped), safety check:
+        # Safety fallback
         if not isinstance(results, list):
-            # Sometimes empty search returns just a message or empty dict
             results = []
 
         if not results:
             print("[RESULT] No memories found.")
             return "No relevant memories found."
         
-        # Clean up the results
-        # We add a safety check here too in case the item isn't a dictionary
         found_memories = []
         for item in results:
             if isinstance(item, dict) and 'memory' in item:
                 found_memories.append(f"- {item['memory']}")
             else:
-                # Fallback for weird data
                 found_memories.append(f"- {str(item)}")
 
         print(f"[RESULT] Found: {found_memories}")
@@ -86,9 +78,22 @@ async def search_memory(query: str) -> str:
         print(f"[ERROR] Search failed: {str(e)}")
         return f"Error searching memory: {str(e)}"
 
-# --- RUN SERVER (CLOUD COMPATIBLE) ---
+# --- SMART CLOUD RUNNER (The Fix) ---
 if __name__ == "__main__":
     import uvicorn
-    # We bypass the standard runner to force it to listen on 0.0.0.0
-    # This accesses the internal app directly so Render can see it.
-    uvicorn.run(mcp._fastapi_app, host="0.0.0.0", port=8080)
+    
+    print("Starting Higgins Memory Server...")
+    
+    # We look for the hidden app object using common names
+    # The library developers hide it in different places depending on version
+    app = getattr(mcp, "_app", None) or getattr(mcp, "_starlette_app", None) or getattr(mcp, "app", None)
+    
+    if app:
+        print("✅ Found internal app! Starting server on 0.0.0.0:8080...")
+        uvicorn.run(app, host="0.0.0.0", port=8080)
+    else:
+        # If we can't find it, we print EVERYTHING so we can see the real name in logs
+        print("❌ COULD NOT FIND APP. Here is what is inside 'mcp':")
+        print(dir(mcp))
+        # Fallback: Try running normally (might fail on port binding but worth a shot)
+        mcp.run(transport="sse")
