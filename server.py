@@ -23,7 +23,6 @@ async def add_memory(text: str) -> str:
     print(f"\n[ACTION] Attempting to save memory: '{text}'")
     
     try:
-        # Standard add
         result = memory.add(messages=text, user_id=FIXED_USER_ID)
         print(f"[SUCCESS] Saved to user: {FIXED_USER_ID}")
         return "Memory successfully stored."
@@ -46,14 +45,12 @@ async def search_memory(query: str) -> str:
         # --- DEBUG LOGGING ---
         print(f"[DEBUG] Raw data received: {results}")
 
-        # Unwrap dictionary if needed
         if isinstance(results, dict):
             if "results" in results:
                 results = results["results"]
             elif "data" in results:
                 results = results["data"]
         
-        # Safety fallback
         if not isinstance(results, list):
             results = []
 
@@ -75,19 +72,15 @@ async def search_memory(query: str) -> str:
         print(f"[ERROR] Search failed: {str(e)}")
         return f"Error searching memory: {str(e)}"
 
-# --- SMART CLOUD RUNNER (Updated with the found key) ---
+# --- FINAL CLOUD RUNNER ---
 if __name__ == "__main__":
     import uvicorn
-    
     print("Starting Higgins Memory Server...")
     
-    # We found the secret key in your logs! It is '_sse_app'
-    app = getattr(mcp, "_sse_app", None)
-    
-    if app:
-        print("✅ Found internal SSE app! Starting server on 0.0.0.0:8080...")
-        uvicorn.run(app, host="0.0.0.0", port=8080)
-    else:
-        print("❌ STILL COULD NOT FIND APP. Trying standard run as last resort...")
-        # This part likely won't work on cloud, but it's a failsafe
-        mcp.run(transport="sse")
+    # WE FOUND IT! The logs showed us the name is 'sse_app' (no underscore)
+    # This accesses the internal engine directly.
+    try:
+        uvicorn.run(mcp.sse_app, host="0.0.0.0", port=8080)
+    except AttributeError:
+        # Just in case, we print the error clearly
+        print("❌ Still failed to find app. Please check logs.")
