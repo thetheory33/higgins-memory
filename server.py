@@ -86,7 +86,9 @@ async def search_memory(query: str) -> str:
         print(f"[ERROR] Search failed: {str(e)}")
         return f"Error searching memory: {str(e)}"
 
-# --- RUN SERVER ---
+# --- RUN SERVER (CLOUD COMPATIBLE) ---
 if __name__ == "__main__":
-    # Listen on 0.0.0.0 (required for cloud) and port 8080
-    mcp.run(transport="sse", host="0.0.0.0", port=8080)
+    import uvicorn
+    # We bypass the standard runner to force it to listen on 0.0.0.0
+    # This accesses the internal app directly so Render can see it.
+    uvicorn.run(mcp._fastapi_app, host="0.0.0.0", port=8080)
