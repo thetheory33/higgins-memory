@@ -72,15 +72,31 @@ async def search_memory(query: str) -> str:
         print(f"[ERROR] Search failed: {str(e)}")
         return f"Error searching memory: {str(e)}"
 
-# --- FINAL CLOUD RUNNER ---
+# --- FINAL CLOUD RUNNER WITH HOST FIX ---
 if __name__ == "__main__":
     import uvicorn
+    
     print("Starting Higgins Memory Server...")
     
-    # WE FOUND IT! The logs showed us the name is 'sse_app' (no underscore)
-    # This accesses the internal engine directly.
-    try:
-        uvicorn.run(mcp.sse_app, host="0.0.0.0", port=8080)
-    except AttributeError:
-        # Just in case, we print the error clearly
-        print("❌ Still failed to find app. Please check logs.")
+    # 1. Get the app
+    app = mcp.sse_app
+
+    # 2. Define the 'Liar' Middleware to fix the Host Header error
+    async def cloud_wrapper(scope, receive, send):
+        # If it's a web request, we trick the app into thinking it's localhost
+        if scope['type'] == 'http':
+            new_headers = []
+            for k, v in scope['headers']:
+                if k == b'host':
+                    # Rewrite the host header to localhost
+                    new_headers.append((b'host', b'localhost:8080'))
+                else:
+                    new_headers.append((k, v))
+            scope['headers'] = new_headers
+        
+        # Pass the modified request to the real app
+        await app(scope, receive, send)
+
+    # 3. Run the WRAPPED app
+    print("✅ Starting Server with Host Header Fix on 0.0.0.0:8080...")
+    uvicorn.run(cloud_wrapper, host="0.0.0.0", port=8080)
